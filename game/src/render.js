@@ -2,7 +2,7 @@
 // cameras, loot, the thief, the HUD alarm meter, and the title / pause /
 // busted / escaped screens. Dark room, warm loot glow, red danger cones.
 import { VIEW } from './config.js';
-import { alarmLevel } from './alarm.js';
+import { alarmLevel, gradeFor } from './alarm.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -210,11 +210,25 @@ function drawGuards(ctx, state) {
     ctx.fillRect(g.x - 8, g.y - 16, 16, 5);
     ctx.fillStyle = '#fff2c0';
     ctx.beginPath(); ctx.arc(g.x + Math.cos(g.angle) * 15, g.y + Math.sin(g.angle) * 15, 3, 0, Math.PI * 2); ctx.fill();
-    if (g.alertT > 0) {
+    // Graded awareness, readable at a glance: a "?" while the guard is
+    // suspicious and searching, a "!" on a full sighting, and a small
+    // suspicion bar that fills as the guard grows certain.
+    if (g.suspicion > 0 && !chasing) {
+      ctx.fillStyle = 'rgba(6,8,14,0.85)';
+      ctx.fillRect(g.x - 13, g.y - 34, 26, 5);
+      ctx.fillStyle = g.suspicion < 45 ? '#ffd76a' : g.suspicion < 80 ? '#ff9a2e' : '#ff2e3e';
+      ctx.fillRect(g.x - 12, g.y - 33, 24 * (g.suspicion / 100), 3);
+    }
+    if (chasing || g.alertT > 0) {
       ctx.fillStyle = '#ff2e3e';
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('!', g.x, g.y - 22);
+    } else if (g.suspicion >= 25) {
+      ctx.fillStyle = '#ffd76a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('?', g.x, g.y - 22);
     }
   }
 }
@@ -288,6 +302,130 @@ function drawFloaters(ctx, state) {
     ctx.fillText(f.text, f.x, f.y - f.t * 30);
     ctx.restore();
   }
+}
+
+function drawSparkles(ctx, state) {
+  for (const s of state.sparkles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - s.t / 0.6);
+    ctx.fillStyle = '#ffe9a8';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** Live minimap, top-right under the HUD: walls, loot, vault, van,
+ *  guards with facing ticks, camera sweeps, and the thief. A stealth
+ *  game without a map forces blind play; this is the planning view. */
+function drawMinimap(ctx, state) {
+  const mw = 150;
+  const mh = 94;
+  const x0 = VIEW.width - mw - 10;
+  const y0 = 64;
+  const sx = mw / VIEW.width;
+  const sy = mh / VIEW.height;
+  const px = (x) => x0 + x * sx;
+  const py = (y) => y0 + y * sy;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6,8,14,0.85)';
+  ctx.fillRect(x0, y0, mw, mh);
+  ctx.strokeStyle = '#3d4a68';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0 + 0.5, y0 + 0.5, mw, mh);
+  // Walls.
+  ctx.fillStyle = '#4a5878';
+  for (const w of state.level.walls) ctx.fillRect(px(w.x), py(w.y), Math.max(2, w.w * sx), Math.max(2, w.h * sy));
+  // Lit lamps: faint warm dots.
+  for (const lamp of state.lamps) {
+    if (!lamp.lit) continue;
+    ctx.fillStyle = 'rgba(255,207,122,0.7)';
+    ctx.beginPath(); ctx.arc(px(lamp.x), py(lamp.y), 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  // Loot left to lift.
+  for (const item of state.loot) {
+    if (item.taken) continue;
+    ctx.fillStyle = '#ffd76a';
+    ctx.beginPath(); ctx.arc(px(item.x), py(item.y), 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+  // Vault: gold diamond (green once open). Van: green square.
+  const v = state.level.vault;
+  ctx.fillStyle = state.vaultOpen ? '#7dff9a' : '#ffd76a';
+  ctx.beginPath();
+  ctx.moveTo(px(v.x), py(v.y) - 4); ctx.lineTo(px(v.x) + 4, py(v.y)); ctx.lineTo(px(v.x), py(v.y) + 4); ctx.lineTo(px(v.x) - 4, py(v.y));
+  ctx.closePath(); ctx.fill();
+  const e = state.level.exit;
+  ctx.fillStyle = '#2fbf71';
+  ctx.fillRect(px(e.x) - 4, py(e.y) - 3, 8, 6);
+  // Cameras: orange dot + sweep tick.
+  for (const cam of state.cameras) {
+    ctx.fillStyle = cam.disabledT > 0 ? '#666' : '#ff9a2e';
+    ctx.beginPath(); ctx.arc(px(cam.x), py(cam.y), 2.5, 0, Math.PI * 2); ctx.fill();
+    if (cam.disabledT <= 0) {
+      ctx.strokeStyle = 'rgba(255,154,46,0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px(cam.x), py(cam.y));
+      ctx.lineTo(px(cam.x) + Math.cos(cam.angle) * 10, py(cam.y) + Math.sin(cam.angle) * 10);
+      ctx.stroke();
+    }
+  }
+  // Guards: red dot + facing tick; suspicious ones get a yellow ring.
+  for (const g of state.guards) {
+    ctx.fillStyle = '#ff5a3c';
+    ctx.beginPath(); ctx.arc(px(g.x), py(g.y), 3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ff5a3c';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px(g.x), py(g.y));
+    ctx.lineTo(px(g.x) + Math.cos(g.angle) * 7, py(g.y) + Math.sin(g.angle) * 7);
+    ctx.stroke();
+    if (g.suspicion >= 25) {
+      ctx.strokeStyle = '#ffd76a';
+      ctx.beginPath(); ctx.arc(px(g.x), py(g.y), 5, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  // The thief: white dot, always on top.
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(px(state.player.x), py(state.player.y), 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#7dff9a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(px(state.player.x), py(state.player.y), 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#9aa5b8';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('MAP', x0 + 4, y0 + 11);
+  ctx.restore();
+}
+
+/** Level-1 onboarding hints: one short line at a time in the first
+ *  seconds, fading out — and skipped once the player has done the thing. */
+const LEVEL1_HINTS = [
+  { from: 0, to: 5, text: 'Move: WASD / arrow keys' },
+  { from: 5, to: 10, text: 'Hold Shift to sneak — quieter, harder to spot', skip: (s) => s.sneakedOnce },
+  { from: 10, to: 15, text: 'Press E near a lit lamp to snuff it', skip: (s) => s.lamps.some((l) => !l.lit) },
+  { from: 15, to: 21, text: 'Grab loot with E — crack the vault, then reach the van' },
+];
+
+function drawHints(ctx, state) {
+  if (state.levelIndex !== 0) return;
+  const t = state.time;
+  const hint = LEVEL1_HINTS.find((h) => t >= h.from && t < h.to && !(h.skip && h.skip(state)));
+  if (!hint) return;
+  const fade = Math.min(1, (hint.to - t) / 1, (t - hint.from) / 0.5 + 0.2);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+  ctx.font = '13px sans-serif';
+  const w = ctx.measureText(hint.text).width + 28;
+  const x = (VIEW.width - w) / 2;
+  ctx.fillStyle = 'rgba(6,8,14,0.78)';
+  ctx.fillRect(x, 92, w, 26);
+  ctx.strokeStyle = 'rgba(255,217,138,0.5)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, 92.5, w, 26);
+  ctx.fillStyle = '#ffe9a8';
+  ctx.textAlign = 'center';
+  ctx.fillText(hint.text, VIEW.width / 2, 110);
+  ctx.restore();
 }
 
 function drawHud(ctx, state, info) {
@@ -372,6 +510,12 @@ export function createRenderer(canvas) {
   return {
     draw(state, screen, info) {
       ctx.clearRect(0, 0, VIEW.width, VIEW.height);
+      // Screen shake on a bust: a short jolt, decaying with shakeT.
+      const shaking = state.shakeT > 0;
+      if (shaking) {
+        ctx.save();
+        ctx.translate((Math.random() - 0.5) * 12 * state.shakeT, (Math.random() - 0.5) * 12 * state.shakeT);
+      }
       if (screen === SCREEN_TITLE) {
         drawRoom(ctx, state);
         drawLoot(ctx, state);
@@ -387,6 +531,7 @@ export function createRenderer(canvas) {
           '',
           'Press Enter or click to start. Steal the Star Sapphire first.',
         ]);
+        if (shaking) ctx.restore();
         return;
       }
       drawRoom(ctx, state);
@@ -398,6 +543,9 @@ export function createRenderer(canvas) {
       drawDarkness(ctx, state);
       drawNoiseRings(ctx, state);
       drawFloaters(ctx, state);
+      drawSparkles(ctx, state);
+      drawMinimap(ctx, state);
+      if (screen === SCREEN_PLAY) drawHints(ctx, state);
       drawHud(ctx, state, info);
       if (screen === SCREEN_PAUSED) {
         overlay(ctx, 'PAUSED', ['Press P or Enter to keep sneaking.', 'R restarts the level.']);
@@ -410,13 +558,22 @@ export function createRenderer(canvas) {
         ], '#ff5a5a');
       } else if (screen === SCREEN_ESCAPED) {
         const next = state.levelIndex + 1 < 3;
+        const g = state.graded
+          ? { grade: state.grade, bonus: state.bonus, lines: state.bonusLines }
+          : gradeFor(state);
+        const gradeNote = g.grade === 'GHOST'
+          ? 'never seen, never heard — the perfect run'
+          : g.grade === 'CLEAN' ? 'spotted, but you slipped away' : 'the whole gallery knew you were here';
         overlay(ctx, next ? 'CLEAN GETAWAY!' : 'THE PERFECT HEIST!', [
           `Haul: $${state.haul} across ${state.levelIndex + 1} ${state.levelIndex + 1 === 1 ? 'gallery' : 'galleries'}.`,
-          next ? 'Press Enter for the next gallery — it is better guarded.' : 'All three galleries cleaned out. The night is yours.',
+          `Grade: ${g.grade} — ${gradeNote}.`,
+          ...g.lines,
           '',
+          next ? 'Press Enter for the next gallery — it is better guarded.' : 'All three galleries cleaned out. The night is yours.',
           next ? '' : 'Press R to run it all again.',
         ], '#7dff9a');
       }
+      if (shaking) ctx.restore();
     },
   };
 }

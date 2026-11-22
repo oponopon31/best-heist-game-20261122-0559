@@ -25,6 +25,10 @@ export function createLevelState(levelIndex) {
       x: g.waypoints[0][0], y: g.waypoints[0][1],
       wp: 1, angle: 0, mode: 'patrol', stunT: 0, chaseT: 0, alertT: 0, pauseT: 0,
       investigateX: 0, investigateY: 0,
+      // Graded awareness: a glimpse raises suspicion; a full sighting
+      // raises the alarm. suspicion 0-100, lastSeen is where the guard
+      // last caught a whiff of the thief.
+      suspicion: 0, lastSeenX: g.waypoints[0][0], lastSeenY: g.waypoints[0][1], searchT: 0,
     })),
     cameras: level.cameras.map((c) => ({
       x: c.x, y: c.y, base: c.base, sweep: c.sweep, speed: c.speed,
@@ -36,10 +40,21 @@ export function createLevelState(levelIndex) {
     smoke: [],
     darts: [],
     floaters: [],
+    sparkles: [],
     alarm: 0,
     spotted: false,
     spotGraceT: 0,
     alarmHoldT: 0,
+    // Grading: tracked across the level, settled on escape.
+    maxAlarm: 0,
+    spottedEver: false,
+    alarmHitMax: false,
+    graded: false,
+    grade: null,
+    bonus: 0,
+    bonusLines: [],
+    shakeT: 0,
+    sneakedOnce: false,
     message: '',
     messageT: 0,
   };

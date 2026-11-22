@@ -8,7 +8,7 @@ import { SCREEN_ESCAPED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 import { stepGuards } from './guards.js';
 import { stepCameras } from './cameras.js';
 import { interact } from './player.js';
-import { stepAlarm } from './alarm.js';
+import { stepAlarm, gradeFor } from './alarm.js';
 import { moveWithWalls } from './world.js';
 
 function silentSounds() {
@@ -88,6 +88,15 @@ export function stageShot(name, state) {
     state.score = state.haul;
     state.alarm = 8;
     state.spotted = false;
+    // Settle the grade the same way the live game does, so the results
+    // screen shows a haul that already includes its bonuses.
+    const g = gradeFor(state);
+    state.grade = g.grade;
+    state.bonus = g.bonus;
+    state.bonusLines = g.lines;
+    state.haul += g.bonus;
+    state.score = state.haul;
+    state.graded = true;
     state.player.x = state.level.exit.x - 90;
     state.player.y = state.level.exit.y - 30;
     state.player.angle = 0;

@@ -14,6 +14,7 @@ export function stepAlarm(state, dt, sounds) {
 
   const wasSpotted = state.spotted;
   state.spotted = seen;
+  if (seen) state.spottedEver = true;
   if (seen) {
     if (!wasSpotted) {
       state.spotGraceT = SPOT_GRACE;
@@ -26,9 +27,11 @@ export function stepAlarm(state, dt, sounds) {
     }
     if (state.alarm >= ALARM_MAX) {
       state.alarmHoldT += dt;
+      state.alarmHitMax = true;
       for (const g of state.guards) g.alertT = 1;
       if (state.alarmHoldT >= ALARM_HOLD_TO_BUST) {
         state.busted = true;
+        state.shakeT = 0.6;
         sounds.lose();
       }
     } else {
@@ -39,12 +42,14 @@ export function stepAlarm(state, dt, sounds) {
     state.alarmHoldT = 0;
     state.alarm = Math.max(0, state.alarm - ALARM_FALL * dt);
   }
+  state.maxAlarm = Math.max(state.maxAlarm, state.alarm);
 
   // Caught red-handed: a guard who touches the thief ends the run at once.
   if (!state.busted) {
     for (const g of state.guards) {
       if (Math.hypot(g.x - state.player.x, g.y - state.player.y) < GUARD_TOUCH) {
         state.busted = true;
+        state.shakeT = 0.6;
         sounds.lose();
         break;
       }
@@ -55,6 +60,24 @@ export function stepAlarm(state, dt, sounds) {
 
 export function alarmLevel(state) {
   return state.alarm / ALARM_MAX;
+}
+
+/** End-of-level grade + bonuses, settled once on escape. GHOST: never
+ *  spotted and the alarm never moved. CLEAN: spotted but never a full
+ *  alarm. LOUD: the alarm hit max. Bonuses reward a thorough, quiet run:
+ *  every loot item lifted (+$150) and no alarm at all (+$200). */
+export function gradeFor(state) {
+  const allLoot = state.loot.length > 0 && state.loot.every((l) => l.taken);
+  const noAlarm = state.maxAlarm <= 0;
+  const lines = [];
+  let bonus = 0;
+  if (allLoot) { bonus += 150; lines.push('FULL SWEEP — every loot item lifted: +$150'); }
+  if (noAlarm) { bonus += 200; lines.push('SILENT — the alarm never moved: +$200'); }
+  let grade;
+  if (!state.spottedEver && state.maxAlarm <= 0) grade = 'GHOST';
+  else if (state.alarmHitMax) grade = 'LOUD';
+  else grade = 'CLEAN';
+  return { grade, bonus, lines };
 }
 
 export function ratingFor(haul, target, busted) {

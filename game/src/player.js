@@ -4,12 +4,31 @@
 import { EMP_SECONDS, SNEAK_SPEED, TOOL, WALK_SPEED } from './config.js';
 import { addFloater, addNoise, hitsWall, moveWithWalls, nearExit, nearVault, nearestLamp, nearestLoot, setMessage } from './world.js';
 import { disableNearestCamera } from './cameras.js';
+import { raiseSuspicion } from './guards.js';
+
+/** A guard who wanders close to a fresh crime scene gets suspicious:
+ *  a bare pedestal or a dead lamp is evidence someone is here. */
+function disturbNearbyGuards(state, x, y, radius, amount) {
+  for (const g of state.guards) {
+    if (Math.hypot(g.x - x, g.y - y) < radius) raiseSuspicion(state, g, x, y, amount);
+  }
+}
+
+/** A burst of gold sparks where loot was just lifted. */
+function burstSparkles(state, x, y) {
+  for (let i = 0; i < 10; i += 1) {
+    const a = (i / 10) * Math.PI * 2 + Math.random() * 0.6;
+    const v = 40 + Math.random() * 70;
+    state.sparkles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0 });
+  }
+}
 
 export function stepPlayer(state, input, dt, sounds) {
   const p = state.player;
   const dir = input.direction();
   const sneak = input.sneaking();
   p.sneaking = sneak;
+  if (sneak) state.sneakedOnce = true;
   const speed = sneak ? SNEAK_SPEED : WALK_SPEED;
   p.moving = dir.x !== 0 || dir.y !== 0;
   if (p.moving) {
@@ -66,6 +85,8 @@ export function interact(state, sounds) {
     state.score += item.value;
     state.haul += item.value;
     addFloater(state, item.x, item.y - 18, `+$${item.value}`, '#ffd76a');
+    burstSparkles(state, item.x, item.y);
+    disturbNearbyGuards(state, item.x, item.y, 200, 30);
     sounds.pickup();
     return 'loot';
   }
@@ -84,6 +105,7 @@ export function interact(state, sounds) {
   if (lamp) {
     lamp.lit = false;
     addFloater(state, lamp.x, lamp.y - 18, 'Lamp out', '#ffb46a');
+    disturbNearbyGuards(state, lamp.x, lamp.y, 220, 35);
     sounds.click();
     setMessage(state, 'Lamp out — the dark is yours.', 1.6);
     return 'lamp';

@@ -13,7 +13,7 @@ import { createRenderer, SCREEN_BUSTED, SCREEN_ESCAPED, SCREEN_PAUSED, SCREEN_PL
 import { stepGuards } from './guards.js';
 import { stepCameras } from './cameras.js';
 import { interact, stepPlayer } from './player.js';
-import { stepAlarm } from './alarm.js';
+import { stepAlarm, gradeFor } from './alarm.js';
 import { createSounds } from './audio.js';
 import { stageShot } from './shots.js';
 
@@ -93,7 +93,10 @@ function runGame() {
     state.noises = state.noises.filter((n) => n.t > 0);
     for (const f of state.floaters) f.t += dt;
     state.floaters = state.floaters.filter((f) => f.t < 1.4);
+    for (const s of state.sparkles) { s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.92; s.vy *= 0.92; }
+    state.sparkles = state.sparkles.filter((s) => s.t < 0.6);
     if (state.messageT > 0) state.messageT -= dt;
+    if (state.shakeT > 0) state.shakeT = Math.max(0, state.shakeT - dt);
     sounds.heartbeat(state.alarm / 100);
     if (state.busted) {
       screen = SCREEN_BUSTED;
@@ -102,6 +105,15 @@ function runGame() {
       announce(`Busted! Haul $${state.haul}.`);
     } else if (state.escaped) {
       screen = SCREEN_ESCAPED;
+      // Settle the grade and bonuses once, before the haul is banked.
+      if (!state.graded) {
+        const g = gradeFor(state);
+        state.grade = g.grade;
+        state.bonus = g.bonus;
+        state.bonusLines = g.lines;
+        state.haul += g.bonus;
+        state.graded = true;
+      }
       totalHaul += state.haul;
       if (totalHaul > best) { best = totalHaul; saveBest(best); }
       announce(`Clean getaway! Haul $${state.haul}.`);
@@ -161,6 +173,8 @@ function runGame() {
       stepGuards(state, STEP);
       stepCameras(state, STEP);
     }
+    // The bust shake keeps decaying after the world stops stepping.
+    if (screen !== SCREEN_PLAY && state.shakeT > 0) state.shakeT = Math.max(0, state.shakeT - STEP);
     renderer.draw(state, screen, { best });
   }
 
