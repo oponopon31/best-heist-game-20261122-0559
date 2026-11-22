@@ -3,7 +3,7 @@
 // its gaze along the direction of travel. When the alarm is full it converges
 // on the thief; a smoke pellet stuns it in place.
 import { GUARD_RANGE } from './config.js';
-import { inSmoke, lineOfSight, moveWithWalls } from './world.js';
+import { inSmoke, isLit, lineOfSight, moveWithWalls } from './world.js';
 
 const GUARD_FOV = 1.15; // radians, half-angle ~33 degrees
 const PAUSE_AT_WAYPOINT = 0.9;
@@ -15,7 +15,9 @@ function angleDiff(a, b) {
   return d;
 }
 
-/** Can this guard see the thief right now? Sneaking shrinks its range. */
+/** Can this guard see the thief right now? Sneaking shrinks its range,
+ *  and so does darkness: a thief outside every lamp pool is much harder
+ *  to spot. */
 export function guardSeesPlayer(state, guard) {
   const p = state.player;
   if (guard.stunT > 0) return false;
@@ -23,7 +25,8 @@ export function guardSeesPlayer(state, guard) {
   const dx = p.x - guard.x;
   const dy = p.y - guard.y;
   const dist = Math.hypot(dx, dy);
-  const range = p.sneaking ? GUARD_RANGE * 0.62 : GUARD_RANGE;
+  let range = p.sneaking ? GUARD_RANGE * 0.62 : GUARD_RANGE;
+  if (!isLit(state, p.x, p.y)) range *= 0.55;
   if (dist > range) return false;
   if (Math.abs(angleDiff(Math.atan2(dy, dx), guard.angle)) > GUARD_FOV / 2 + 0.12) return false;
   return lineOfSight(state, guard.x, guard.y, p.x, p.y);
@@ -33,11 +36,24 @@ export function guardCone(state, guard) {
   return { x: guard.x, y: guard.y, angle: guard.angle, range: GUARD_RANGE, fov: GUARD_FOV };
 }
 
-/** Advance every guard one step: patrol, pause, chase, or stand stunned. */
+/** Advance every guard one step: patrol, pause, investigate a noise,
+ *  chase, or stand stunned. */
 export function stepGuards(state, dt) {
   for (const guard of state.guards) {
     if (guard.stunT > 0) { guard.stunT -= dt; continue; }
     guard.alertT = Math.max(0, guard.alertT - dt);
+    // A noise inside hearing range pulls a patrolling guard over to look.
+    if (guard.mode === 'patrol') {
+      for (const n of state.noises) {
+        if (Math.hypot(n.x - guard.x, n.y - guard.y) < n.r + 60) {
+          guard.mode = 'investigate';
+          guard.investigateX = n.x;
+          guard.investigateY = n.y;
+          guard.alertT = 1.5;
+          break;
+        }
+      }
+    }
     let tx;
     let ty;
     let speed = guard.speed;
@@ -46,6 +62,13 @@ export function stepGuards(state, dt) {
       tx = state.player.x; ty = state.player.y; speed = guard.speed * 1.55;
       guard.chaseT += dt;
       if (state.alarm < 40 || guard.chaseT > 6) { guard.mode = 'patrol'; guard.chaseT = 0; }
+    } else if (guard.mode === 'investigate') {
+      tx = guard.investigateX; ty = guard.investigateY;
+      if (Math.hypot(tx - guard.x, ty - guard.y) < 10) {
+        // Arrived: look around a moment, then back to the patrol.
+        guard.mode = 'patrol';
+        guard.pauseT = 1.5;
+      }
     } else {
       const target = guard.waypoints[guard.wp];
       tx = target[0]; ty = target[1];

@@ -23,13 +23,16 @@ export function createLevelState(levelIndex) {
     guards: level.guards.map((g) => ({
       waypoints: g.waypoints, speed: g.speed,
       x: g.waypoints[0][0], y: g.waypoints[0][1],
-      wp: 1, angle: 0, mode: 'patrol', stunT: 0, chaseT: 0, alertT: 0,
+      wp: 1, angle: 0, mode: 'patrol', stunT: 0, chaseT: 0, alertT: 0, pauseT: 0,
+      investigateX: 0, investigateY: 0,
     })),
     cameras: level.cameras.map((c) => ({
       x: c.x, y: c.y, base: c.base, sweep: c.sweep, speed: c.speed,
       angle: c.base, phase: Math.random() * Math.PI * 2, disabledT: 0,
     })),
     loot: level.loot.map((l) => ({ ...l, taken: false })),
+    lamps: level.lamps.map((l) => ({ ...l })),
+    noises: [],
     smoke: [],
     darts: [],
     floaters: [],
@@ -93,6 +96,33 @@ export function inSmoke(state, x, y) {
     if (Math.hypot(x - s.x, y - s.y) < s.r) return true;
   }
   return false;
+}
+
+/** True when the point is lit by any lit lamp (walls block light). */
+export function isLit(state, x, y) {
+  for (const lamp of state.lamps) {
+    if (!lamp.lit) continue;
+    if (Math.hypot(x - lamp.x, y - lamp.y) < lamp.r && lineOfSight(state, lamp.x, lamp.y, x, y)) return true;
+  }
+  return false;
+}
+
+/** The lit lamp nearest the thief within reach, for snuffing with E. */
+export function nearestLamp(state) {
+  const p = state.player;
+  let best = null;
+  let bestD = 40;
+  for (const lamp of state.lamps) {
+    if (!lamp.lit) continue;
+    const d = Math.hypot(lamp.x - p.x, lamp.y - p.y);
+    if (d < bestD) { bestD = d; best = lamp; }
+  }
+  return best;
+}
+
+/** A footstep's sound: guards in hearing range come to look. */
+export function addNoise(state, x, y, r) {
+  state.noises.push({ x, y, r, t: 0.9 });
 }
 
 export function nearestLoot(state) {

@@ -89,6 +89,8 @@ function runGame() {
     stepAlarm(state, dt, sounds);
     for (const s of state.smoke) s.t -= dt;
     state.smoke = state.smoke.filter((s) => s.t > 0);
+    for (const n of state.noises) n.t -= dt;
+    state.noises = state.noises.filter((n) => n.t > 0);
     for (const f of state.floaters) f.t += dt;
     state.floaters = state.floaters.filter((f) => f.t < 1.4);
     if (state.messageT > 0) state.messageT -= dt;

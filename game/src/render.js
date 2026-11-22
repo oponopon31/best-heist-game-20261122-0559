@@ -30,6 +30,75 @@ function drawCone(ctx, cone, color, alpha) {
   ctx.restore();
 }
 
+function drawLamps(ctx, state) {
+  for (const lamp of state.lamps) {
+    if (lamp.lit) {
+      // Warm halo so the pool reads even before the darkness pass.
+      ctx.save();
+      ctx.globalAlpha = 0.20;
+      ctx.fillStyle = '#ffcf7a';
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, lamp.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#ffe9a8';
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#8a6a1f';
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 3, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // Snuffed: a cold, dead fixture.
+      ctx.fillStyle = '#3a4152';
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1a1f2a';
+      ctx.beginPath(); ctx.arc(lamp.x, lamp.y, 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawNoiseRings(ctx, state) {
+  for (const n of state.noises) {
+    const life = Math.max(0, n.t / 0.9);
+    ctx.save();
+    ctx.globalAlpha = 0.75 * life;
+    ctx.strokeStyle = '#ffd76a';
+    ctx.lineWidth = 2;
+    // The ring expands to its full hearing radius, then fades.
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (1 - life * 0.55), 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.3 * life;
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/** Night falls over the room: darkness everywhere except the lit lamp
+ *  pools and a small pool around the thief, who must always read.
+ *  The dark layer is built on an offscreen canvas so the light pools
+ *  punch holes in the darkness only — punching them on the main canvas
+ *  would erase the room itself and leave black holes. */
+let darkLayer = null;
+function drawDarkness(ctx, state) {
+  if (!darkLayer) {
+    darkLayer = document.createElement('canvas');
+    darkLayer.width = VIEW.width;
+    darkLayer.height = VIEW.height;
+  }
+  const dctx = darkLayer.getContext('2d');
+  dctx.clearRect(0, 0, VIEW.width, VIEW.height);
+  dctx.fillStyle = 'rgba(4,6,12,0.55)';
+  dctx.fillRect(0, 56, VIEW.width, VIEW.height - 56);
+  dctx.globalCompositeOperation = 'destination-out';
+  const pool = (x, y, r) => {
+    const g = dctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.75, 'rgba(0,0,0,0.9)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    dctx.fillStyle = g;
+    dctx.beginPath(); dctx.arc(x, y, r, 0, Math.PI * 2); dctx.fill();
+  };
+  for (const lamp of state.lamps) if (lamp.lit) pool(lamp.x, lamp.y, lamp.r);
+  pool(state.player.x, state.player.y, 72);
+  dctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(darkLayer, 0, 0);
+}
+
 function drawRoom(ctx, state) {
   const level = state.level;
   // Night floor with a marble sheen.
@@ -90,6 +159,7 @@ function drawRoom(ctx, state) {
     ctx.lineWidth = 2;
     ctx.strokeRect(e.x - 40, e.y - 24, 80, 48);
   }
+  drawLamps(ctx, state);
 }
 
 function drawLoot(ctx, state) {
@@ -313,7 +383,7 @@ export function createRenderer(canvas) {
           'and slip out to the getaway van — without the guards or cameras catching you.',
           '',
           'WASD / arrows — move    Shift — sneak    Click — throw tool',
-          'E / Space — grab loot · pick vault · escape    1/2/3 — choose tool    P — pause',
+          'E / Space — grab loot · snuff lamp · pick vault · escape    1/2/3 — choose tool    P — pause',
           '',
           'Press Enter or click to start. Steal the Star Sapphire first.',
         ]);
@@ -325,6 +395,8 @@ export function createRenderer(canvas) {
       drawCameras(ctx, state);
       drawSmoke(ctx, state);
       drawPlayer(ctx, state);
+      drawDarkness(ctx, state);
+      drawNoiseRings(ctx, state);
       drawFloaters(ctx, state);
       drawHud(ctx, state, info);
       if (screen === SCREEN_PAUSED) {

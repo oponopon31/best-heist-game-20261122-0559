@@ -16,6 +16,7 @@ function silentSounds() {
   return {
     footstep: noop, pickup: noop, vault: noop, smoke: noop, emp: noop,
     deny: noop, spotted: noop, click: noop, win: noop, lose: noop, heartbeat: noop,
+    thud: noop,
   };
 }
 
@@ -56,6 +57,8 @@ function runSteps(state, seconds, pilot) {
     stepAlarm(state, STEP, sounds);
     for (const s of state.smoke) s.t -= STEP;
     state.smoke = state.smoke.filter((s) => s.t > 0);
+    for (const n of state.noises) n.t -= STEP;
+    state.noises = state.noises.filter((n) => n.t > 0);
     for (const f of state.floaters) f.t += STEP;
     state.floaters = state.floaters.filter((f) => f.t < 1.4);
     if (state.messageT > 0) state.messageT -= STEP;
@@ -99,6 +102,8 @@ export function stageShot(name, state) {
     const sx = Math.min(860, Math.max(100, state.player.x + 60));
     const sy = Math.min(500, Math.max(120, state.player.y - 40));
     state.smoke.push({ x: sx, y: sy, r: 74, t: 2 });
+    // A fresh footstep noise ring at the thief's feet, mid-expansion.
+    state.noises.push({ x: state.player.x, y: state.player.y, r: 110, t: 0.7 });
     state.message = 'Smoke out — move!';
     state.messageT = 99;
     // Always the live room, never an overlay: the shot must show the heist.

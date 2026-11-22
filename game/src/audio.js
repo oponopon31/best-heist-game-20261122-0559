@@ -55,6 +55,8 @@ export function createSounds() {
   return {
     unlock() { ensure(); },
     footstep(sneak) { noise(0.07, sneak ? 0.03 : 0.07, sneak ? 400 : 900); },
+    /** A soft thud under each footstep — the sound guards hear. */
+    thud(sneak) { noise(0.12, sneak ? 0.02 : 0.06, 300); },
     pickup() { tone(660, 0.12, 'triangle', 0.14); setTimeout(() => tone(990, 0.18, 'triangle', 0.12), 70); },
     vault() { tone(220, 0.3, 'triangle', 0.14, 440); setTimeout(() => tone(880, 0.4, 'sine', 0.12), 160); },
     smoke() { noise(0.5, 0.12, 500); },

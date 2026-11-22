@@ -2,7 +2,7 @@
 // Moving is quiet on the carpet and loud on the marble; sneaking is slower
 // but harder to spot. Tools are thrown at the mouse cursor.
 import { EMP_SECONDS, SNEAK_SPEED, TOOL, WALK_SPEED } from './config.js';
-import { addFloater, hitsWall, moveWithWalls, nearExit, nearVault, nearestLoot, setMessage } from './world.js';
+import { addFloater, addNoise, hitsWall, moveWithWalls, nearExit, nearVault, nearestLamp, nearestLoot, setMessage } from './world.js';
 import { disableNearestCamera } from './cameras.js';
 
 export function stepPlayer(state, input, dt, sounds) {
@@ -19,6 +19,10 @@ export function stepPlayer(state, input, dt, sounds) {
     if (p.stepT <= 0) {
       p.stepT = sneak ? 0.55 : 0.34;
       sounds.footstep(sneak);
+      // Every footstep is a noise guards can hear: loud on the walk,
+      // a whisper on the sneak.
+      addNoise(state, p.x, p.y, sneak ? 45 : 110);
+      if (sounds.thud) sounds.thud(sneak);
     }
   }
   const sel = input.takeToolSelect();
@@ -75,6 +79,14 @@ export function interact(state, sounds) {
     sounds.vault();
     setMessage(state, `${state.level.vault.label} is yours — get to the van!`, 3);
     return 'vault';
+  }
+  const lamp = nearestLamp(state);
+  if (lamp) {
+    lamp.lit = false;
+    addFloater(state, lamp.x, lamp.y - 18, 'Lamp out', '#ffb46a');
+    sounds.click();
+    setMessage(state, 'Lamp out — the dark is yours.', 1.6);
+    return 'lamp';
   }
   if (nearExit(state)) {
     if (!state.vaultOpen) { setMessage(state, `Grab the ${state.level.vault.label} first!`, 2); sounds.deny(); return 'need-vault'; }

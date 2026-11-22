@@ -45,9 +45,20 @@ export const LEVELS = [
     guards: [
       { waypoints: [[300, 300], [600, 300], [600, 460], [300, 460]], speed: 62 },
       { waypoints: [[360, 170], [360, 480]], speed: 55 },
+      { waypoints: [[600, 170], [600, 420]], speed: 58 },
     ],
     cameras: [
       { x: 480, y: 72, base: Math.PI / 2, sweep: 0.9, speed: 0.55 },
+      { x: 720, y: 72, base: Math.PI / 2, sweep: 0.9, speed: 0.6 },
+    ],
+    // Warm ceiling lamps: pools of light over open floor. A lit lamp's pool
+    // is where guards spot the thief at full range; darkness shrinks it.
+    // Press E beside a lit lamp to snuff it.
+    lamps: [
+      { x: 300, y: 300, r: 120, lit: true },
+      { x: 660, y: 300, r: 120, lit: true },
+      { x: 480, y: 470, r: 120, lit: true },
+      { x: 150, y: 110, r: 110, lit: true },
     ],
     loot: [
       { x: 150, y: 110, kind: 'painting', value: 120, label: 'Moonlit Canal' },
@@ -75,12 +86,20 @@ export const LEVELS = [
     ],
     guards: [
       { waypoints: [[240, 200], [720, 200], [720, 480], [240, 480]], speed: 74 },
-      { waypoints: [[480, 150], [480, 280], [700, 300], [700, 480]], speed: 68 },
+      { waypoints: [[480, 150], [480, 280], [700, 300], [700, 480], [700, 150]], speed: 68 },
       { waypoints: [[250, 150], [250, 480]], speed: 66 },
+      { waypoints: [[700, 420], [700, 480], [480, 480], [480, 420]], speed: 62 },
     ],
     cameras: [
       { x: 240, y: 72, base: Math.PI / 2, sweep: 1.0, speed: 0.7 },
       { x: 720, y: 72, base: Math.PI / 2, sweep: 1.0, speed: 0.6 },
+      { x: 480, y: 72, base: Math.PI / 2, sweep: 1.0, speed: 0.65 },
+    ],
+    lamps: [
+      { x: 240, y: 200, r: 120, lit: true },
+      { x: 720, y: 200, r: 120, lit: true },
+      { x: 480, y: 470, r: 120, lit: true },
+      { x: 480, y: 150, r: 110, lit: true },
     ],
     loot: [
       { x: 120, y: 110, kind: 'painting', value: 150, label: 'Storm over Harbour' },
@@ -111,12 +130,21 @@ export const LEVELS = [
       { waypoints: [[260, 220], [700, 220], [700, 480], [260, 480]], speed: 88 },
       { waypoints: [[360, 420], [600, 420]], speed: 82 },
       { waypoints: [[150, 200], [480, 200], [810, 200]], speed: 80 },
-      { waypoints: [[700, 200], [700, 460], [480, 460]], speed: 76 },
+      { waypoints: [[700, 200], [700, 460], [480, 460], [260, 460], [260, 200]], speed: 76 },
+      { waypoints: [[150, 300], [150, 410], [260, 410]], speed: 72 },
     ],
     cameras: [
       { x: 160, y: 72, base: Math.PI / 2, sweep: 1.1, speed: 0.85 },
       { x: 480, y: 72, base: Math.PI / 2, sweep: 0.9, speed: 0.7 },
       { x: 800, y: 72, base: Math.PI / 2, sweep: 1.1, speed: 0.8 },
+      { x: 320, y: 72, base: Math.PI / 2, sweep: 1.0, speed: 0.75 },
+    ],
+    lamps: [
+      { x: 260, y: 220, r: 120, lit: true },
+      { x: 700, y: 220, r: 120, lit: true },
+      { x: 480, y: 520, r: 120, lit: true },
+      { x: 150, y: 300, r: 110, lit: true },
+      { x: 810, y: 300, r: 110, lit: true },
     ],
     loot: [
       { x: 110, y: 100, kind: 'painting', value: 200, label: 'Night Watch II' },
